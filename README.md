@@ -177,8 +177,26 @@ MIT License.
 
 ---
 
+## 📸 Screenshots
+
+### Task Scheduling Overview (Logic Analyzer)
+![Logic Analyzer Overview](docs/logic_overview.png)
+*Three tasks running with preemptive scheduling. The `OSSCHED` pin pulses on every context switch, while `OS_onidle` shows when the system has nothing to do.*
+
+### Priority Tracking
+![Priority Tracking](docs/logic_priority.png)
+*Each GPIO pin tracks a task or OS event. Real-time priority changes are visible — the `main_blinky2` task switches from priority 5 to priority 1.*
+
+### Context Switch Timing
+![Context Switch Zoom](docs/logic_zoom.png)
+*Zoomed view showing individual task toggles at microsecond resolution. Context switch time: ~50 CPU cycles.*
+
+---
+
 ## 📬 Contact
 
 **Mustafa YILMAZ** — Embedded Software Engineer
 
 [![GitHub](https://img.shields.io/badge/GitHub-mustafaylmz1995-181717?style=flat-square&logo=github)](https://github.com/mustafaylmz1995)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-mustafayilmaz18-0A66C2?style=flat-square&logo=linkedin)](https://linkedin.com/in/mustafayilmaz18)
+[![Email](https://img.shields.io/badge/Email-mustafaylmz1995@gmail.com-EA4335?style=flat-square&logo=gmail)](mailto:mustafaylmz1995@gmail.com)
