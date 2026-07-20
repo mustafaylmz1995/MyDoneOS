@@ -1,23 +1,42 @@
 # MyDoneOS
 
-**Minimal Real-Time Kernel for ARM Cortex-M4**
+**Minimal Real-Time Kernel for ARM Cortex-M4 — Priority Scheduling, Semaphore, Mutex, Queue**
 
 [![ARM](https://img.shields.io/badge/Target-ARM_Cortex--M4F-red)](https://developer.arm.com)
 [![Language](https://img.shields.io/badge/Language-C-blue)](https://en.wikipedia.org/wiki/C_(programming_language))
+[![RTOS](https://img.shields.io/badge/RTOS-Minimal-green)]
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ---
 
 ## 📖 Overview
 
-MyDoneOS is a minimal real-time operating system kernel for ARM Cortex-M4F microcontrollers. It features:
+MyDoneOS is a minimal real-time kernel for ARM Cortex-M4F microcontrollers. Built as a deep-dive project into RTOS internals. Features O(1) bitmap scheduling, counting semaphores, mutexes with priority inheritance, and message queues.
 
-- ⚡ **O(1) bitmap scheduler** — single `CLZ` instruction task selection
-- 🔄 **Preemptive multitasking** — PendSV-based context switching
-- 🔐 **Counting semaphore** — with blocking wait set
-- 🔒 **Mutex with priority inheritance** — prevents priority inversion
-- ⏱️ **Software timer** — SysTick-driven timeout management
-- 🧩 **~500 lines of C** — fully auditable, MISRA-C friendly
+```
+Timer Interrupt
+     │
+     ▼
+┌────────────┐     ┌──────────────────────┐
+│  SysTick   │────▶│   OS_ticks()         │
+│  Handler   │     │   decrements timeouts │
+└────────────┘     └──────────┬───────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────┐
+│              OSSCHED()                      │
+│  Find highest-prio ready task via CLZ       │
+│  If different from current → trigger PendSV │
+└────────────────────┬────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────┐
+│         PendSV Handler (context switch)      │
+│  Save context (R4-R11, LR) of current task   │
+│  Restore context of next task                │
+│  Return → now executing new task            │
+└─────────────────────────────────────────────┘
+```
 
 ---
 
@@ -25,55 +44,81 @@ MyDoneOS is a minimal real-time operating system kernel for ARM Cortex-M4F micro
 
 | File | Description |
 |:-----|:------------|
-| `miros.c` | Kernel implementation — scheduler, context switch, sync primitives |
-| `miros.h` | Kernel API — TCB, semaphore, mutex declarations |
-| `bsp.c` | Board Support Package — hardware initialization |
-| `bsp.h` | BSP header |
-| `embed_assert.h` | Embedded assertion macros |
+| **Kernel Core** | |
+| `miros.c` / `miros.h` | Scheduler, TCB management, context switch, time management |
+| **Synchronization** | |
+| `OS_Sem.c` / `OS_Sem.h` | Counting semaphore with blocking wait set |
+| `OS_Mux.c` / `OS_Mux.h` | Mutex with priority inheritance & ceiling protocol |
+| `embed_queue.c` / `embed_queue.h` | Message queue for inter-task communication |
+| **Support** | |
+| `embed_assert.c` / `embed_assert.h` | Embedded assertion macros |
+| `config_constant.c` / `config_constant.h` | System configuration constants |
+| **Board Support** | |
+| `bsp.c` / `bsp.h` | Hardware init, LED control, GPIO, timers |
+| `tbio.c` / `tbio.h` | Terminal I/O for debug output |
+| **Application** | |
+| `main.c` / `main.h` | Example tasks and application entry |
+| `thread.c` / `thread.h` | Thread definitions and handlers |
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Kernel API
 
-This kernel targets the **TI TM4C1294** (ARM Cortex-M4F) on the EK-TM4C1294XL LaunchPad.
-
-### Prerequisites
-
-- Keil MDK-ARM v5+ (or any ARM toolchain)
-- TI EK-TM4C1294XL LaunchPad (or any TM4C1294 board)
-
-### Building
-
-```bash
-# Clone the repository
-git clone https://github.com/mustafaylmz1995/MyDoneOS.git
-cd MyDoneOS
-
-# Import into Keil MDK and build
-# Or use arm-none-eabi-gcc with appropriate linker script
+### Task Management
+```c
+void OSINIT(void);                    // Initialize kernel
+void OSTHREAD_CREATE(OSTCB *tcb, uint8_t prio, 
+                     void (*handler)(void), 
+                     void *stack, uint32_t stackSize);
+void OSRUN(void);                    // Start scheduler
+void OS_delay(uint32_t ticks);       // Blocking delay
 ```
 
-### Example: Creating Tasks
+### Semaphore
+```c
+void OSSem_init(OS_Semaphore *sem, uint16_t val, uint16_t max);
+uint8_t OSSem_wait(OS_Semaphore *sem);    // Block until available
+uint8_t OSSem_signal(OS_Semaphore *sem);  // Release
+```
+
+### Mutex
+```c
+void OSMutex_init(OS_Mutex *mux, uint8_t ceiling);
+uint8_t OSMutex_lock(OS_Mutex *mux);      // Acquire with inheritance
+uint8_t OSMutex_unlock(OS_Mutex *mux);    // Release
+```
+
+### Queue
+```c
+void OSQueue_init(OS_Queue *q, void *buf, uint32_t size, uint32_t itemSize);
+uint8_t OSQueue_send(OS_Queue *q, void *item);    // Send message
+uint8_t OSQueue_recv(OS_Queue *q, void *item);    // Receive message
+```
+
+---
+
+## 🧪 Example: Blinky with Two Tasks
 
 ```c
 #include "miros.h"
 #include "bsp.h"
+#include "OS_Sem.h"
+
+static OS_Semaphore sem1;
 
 static void task1(void) {
     while (1) {
+        OSSem_wait(&sem1);
         BSP_ledRedOn();
         OS_delay(500);
         BSP_ledRedOff();
-        OS_delay(500);
     }
 }
 
 static void task2(void) {
     while (1) {
-        BSP_ledBlueOn();
         OS_delay(1000);
-        BSP_ledBlueOff();
-        OS_delay(1000);
+        OSSem_signal(&sem1);  // Trigger task1
     }
 }
 
@@ -83,67 +128,43 @@ int main(void) {
     
     BSP_init();
     OSINIT();
+    OSSem_init(&sem1, 0, 1);
     
-    OSTHREAD_CREATE(&tcb1, 1, task1, &stack1[0], sizeof(stack1));
-    OSTHREAD_CREATE(&tcb2, 2, task2, &stack2[0], sizeof(stack2));
+    OSTHREAD_CREATE(&tcb1, 2, task1, &stack1[0], sizeof(stack1));
+    OSTHREAD_CREATE(&tcb2, 1, task2, &stack2[0], sizeof(stack2));
     
-    OSRUN();  // Start scheduler — never returns
+    OSRUN();  // Never returns
     return 0;
 }
 ```
 
 ---
 
-## 📊 Kernel Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│                   APPLICATION                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │
-│  │  Task 1  │  │  Task 2  │  │  Task N (idle)   │  │
-│  └────┬─────┘  └────┬─────┘  └────────┬─────────┘  │
-│       │              │                 │             │
-├───────┴──────────────┴─────────────────┴────────────┤
-│                   KERNEL (miros)                     │
-│  ┌─────────────┐  ┌──────────┐  ┌────────────────┐ │
-│  │  Scheduler  │  │ PendSV   │  │  Sync Primitives│ │
-│  │  O(1) bitmap│  │ Handler  │  │  Sem, Mutex    │ │
-│  └─────────────┘  └──────────┘  └────────────────┘ │
-├──────────────────────────────────────────────────────┤
-│                 HARDWARE (TM4C1294)                   │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │
-│  │ SysTick  │  │   NVIC   │  │  GPIO/Timer/UART  │  │
-│  └──────────┘  └──────────┘  └──────────────────┘  │
-└──────────────────────────────────────────────────────┘
-```
-
----
-
-## 📈 Performance
+## 📊 Performance
 
 | Metric | Value |
 |:-------|:------|
-| Scheduler | O(1) — single CLZ instruction |
+| Scheduler | **O(1)** — single CLZ instruction |
 | Context switch | ~50 cycles (~0.4 µs @ 120 MHz) |
 | Max tasks | 32 |
-| RAM per task | 12 bytes (TCB) + stack |
-| Code size | ~500 lines C + 20 ASM |
+| RAM per task | 12 bytes (TCB) + task stack |
+| Code size | ~800 lines C + 20 ASM |
 
 ---
 
 ## 🙏 Credits
 
-This project was inspired by:
+This project was completed **3-4 years ago** as a deep-dive into RTOS internals. It was developed over several months of study and hands-on experimentation on a TI Tiva LaunchPad.
+
+Inspired by:
 - **Miro Samek's** embedded systems YouTube series
 - **Jonathan Valvano's** book *"Embedded Systems: RTOS for ARM Cortex-M Microcontrollers"*
-
-The synchronization primitives (semaphore and priority inheritance mutex) were designed and tested independently based on these foundational concepts.
 
 ---
 
 ## 📄 License
 
-MIT License — see [LICENSE](LICENSE).
+MIT License.
 
 ---
 
