@@ -52,10 +52,13 @@ Timer Interrupt
 | `embed_queue.c` / `embed_queue.h` | Message queue for inter-task communication |
 | **Support** | |
 | `embed_assert.c` / `embed_assert.h` | Embedded assertion macros |
-| `config_constant.c` / `config_constant.h` | System configuration constants |
+| `config_constant.c` / `config_constant.h` | System configuration constants
+| **Hardware** | |
+| `startup_TM4C129.s` | Startup code — vector table, reset handler, interrupt handlers
+| `system_TM4C129.c` / `system_TM4C129.h` | System initialization — clock config, peripheral setup |
 | **Board Support** | |
 | `bsp.c` / `bsp.h` | Hardware init, LED control, GPIO, timers |
-| `tbio.c` / `tbio.h` | Terminal I/O for debug output |
+| `tbio.c` / `tbio.h` | TM4C1294 Basic Input Output (TBIO) — UART debug I/O |
 | **Application** | |
 | `main.c` / `main.h` | Example tasks and application entry |
 | `thread.c` / `thread.h` | Thread definitions and handlers |
