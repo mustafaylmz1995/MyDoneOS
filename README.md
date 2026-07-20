@@ -11,6 +11,12 @@
 
 ## 📖 Overview
 
+
+> ⚠️ **DISCLAIMER**
+> This is an **educational project** created for learning RTOS internals. It is **not production-ready software**.
+> It may contain bugs, incomplete error handling, and untested edge cases.
+> Use at your own risk. The author assumes no liability for any damages or issues arising from its use.
+
 MyDoneOS is a minimal real-time kernel for ARM Cortex-M4F microcontrollers. Built as a deep-dive project into RTOS internals. Features O(1) bitmap scheduling, counting semaphores, mutexes with priority inheritance, and message queues.
 
 ```
